@@ -2,6 +2,8 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
+var session = require('express-session');
+var bcrypt = require('bcrypt-nodejs');
 
 
 var db = require('./app/config');
@@ -22,25 +24,35 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+var isAuthenticated = function(req, res, next) {
+  if (req.session.user) {
+    console.log('authenticated user: ', req.session.user);
+    return next();
+  } else {
+    console.log('you are not authorized to view this page');
+    res.redirect('/login');
+  }
+};
 
 app.get('/', 
 function(req, res) {
   res.render('index');
 });
 
-app.get('/create', 
+app.get('/create',
 function(req, res) {
   res.render('index');
 });
 
-app.get('/links', 
+app.get('/links',
 function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
-app.post('/links', 
+
+app.post('/links',
 function(req, res) {
   var uri = req.body.url;
 
@@ -72,9 +84,53 @@ function(req, res) {
   });
 });
 
+
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+
+
+app.get('/login', function(req, res) {
+  res.render('login');
+});
+
+app.get('/signup', function(req, res) {
+  res.render('signup');
+});
+
+app.post('/login', function (req, res) {
+  var username = request.body.username;
+  var password = request.body.password;
+
+  if (username && password) {
+    User.where({username: username}).fetch().then(function(user) {
+      // bcrypt.compare(password, )
+    })
+      .catch(function(error) {
+        console.log('failed to fetch user ', error);
+      });
+  } else {
+    res.sendStatus(400);
+    console.log('error logging in');
+  }
+});
+
+app.post('/signup', function(req, res) {
+  req.username = username;
+  req.password = password;
+
+  if (!username || !password) {
+    res.send('username or password is undefined');
+  } else {
+    res.redirect('/restricted');
+  }
+});
+
+app.get('/logout', function (req, res) {
+  req.session.destroy(function() {
+    res.redirect('/login');
+  });
+});     
 
 
 
