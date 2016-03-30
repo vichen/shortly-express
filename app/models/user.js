@@ -6,6 +6,7 @@ var Promise = require('bluebird');
 
 var User = db.Model.extend({
   tableName: 'users',
+  hasTimeStampes: true,
   initialize: function() {
     this.on('creating', function(model) {
       bcrypt.hash(model.get('password'), null, null, function(error, hashedPwd) {

@@ -22,6 +22,13 @@ app.use(partials());
 app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// TODO:
+// instantiate and use express session middleware
+// https://github.com/expressjs/session#reqsession
+app.use(session({ secret: 'chewy the min pin', cookie: { maxAge: 60000 }}));
+
+
 app.use(express.static(__dirname + '/public'));
 
 var isAuthenticated = function(req, res, next) {
@@ -34,26 +41,22 @@ var isAuthenticated = function(req, res, next) {
   }
 };
 
-app.get('/', 
-function(req, res) {
+app.get('/', isAuthenticated, function(req, res) {
   res.render('index');
 });
 
-app.get('/create',
-function(req, res) {
+app.get('/create', isAuthenticated, function(req, res) {
   res.render('index');
 });
 
-app.get('/links',
-function(req, res) {
+app.get('/links', isAuthenticated, function(req, res) {
   Links.reset().fetch().then(function(links) {
     res.send(200, links.models);
   });
 });
 
 
-app.post('/links',
-function(req, res) {
+app.post('/links', isAuthenticated, function(req, res) {
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -103,14 +106,43 @@ app.post('/login', function (req, res) {
   var password = request.body.password;
 
   if (username && password) {
-    User.where({username: username}).fetch().then(function(user) {
-      // bcrypt.compare(password, )
-    })
+    User.where({username: username}).fetch()
+      .then(function(user) {
+        // IF user is null, meaning username doesn't exist in DB -> send status 401 Unauthorized
+        console.log('fetched user ', user);
+        if (user === null) {
+          sendStatus(401);
+          return;
+        }
+
+        // Compare "password" with user.get('password') // aka hashed password stored in DB
+        // IF false, meaning passwords don't match -> send status 401 Unauthorized
+        bcrypt.compare(password, user.get('password'), function(err, res) {
+          if (err) {
+            sendStatus(401);
+            return;
+          } else {
+            req.session;
+            res.redirect('/index');
+            res.end('welcome to the session demo. refresh!');
+          }
+        });
+        
+
+        // ELSE password matches,
+        //   1) create express sessions, 
+        //  https://github.com/expressjs/session#reqsession
+        //   2) redirect to "index"
+      })
       .catch(function(error) {
+        // Error trying to fetch user, could be either server or DB losing connection
         console.log('failed to fetch user ', error);
+        res.sendStatus(500);
+        return;
       });
   } else {
     res.sendStatus(400);
+    return;
     console.log('error logging in');
   }
 });
@@ -122,15 +154,32 @@ app.post('/signup', function(req, res) {
   if (!username || !password) {
     res.send('username or password is undefined');
   } else {
-    res.redirect('/restricted');
+
+    // Create a new User, 
+    // http://bookshelfjs.org/#Collection-instance-create
+    User.create(username, function(error) {
+      if (error) {
+        sendStatus(500);
+      } else {
+        req.session;
+        res.redirect('/index');
+      }
+    });
+
+    // IF there's an error, send back appropriate error status code
+
+    // IF user is created successfully
+    // similar to login,
+    //  1) create express session
+    //  2) redirect to index
   }
 });
 
-app.get('/logout', function (req, res) {
+app.post('/logout', function (req, res) {
   req.session.destroy(function() {
     res.redirect('/login');
   });
-});     
+});
 
 
 
